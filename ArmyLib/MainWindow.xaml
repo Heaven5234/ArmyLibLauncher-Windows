@@ -1,0 +1,26 @@
+﻿<Window x:Class="ArmyLib.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:local="clr-namespace:ArmyLib"
+        mc:Ignorable="d"
+        Title="MainWindow" Height="960" Width="1280">
+    <Grid Background="#0f151f">
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="220"/>
+            <ColumnDefinition Width="*"/>
+        </Grid.ColumnDefinitions>
+
+        <Border Grid.Column="0" Background="#213045" CornerRadius="0,10,10,0">
+            <StackPanel>
+                <TextBlock Text="Kütüphane" Foreground="Gray" FontWeight="Bold" Margin="0,0,0,15" FontSize="30"/>
+                
+            </StackPanel>
+        </Border>
+
+        <Grid Grid.Column="1" Margin="20">
+            <TextBlock Text="Oyunlarınız" Foreground="White" FontSize="20"/>
+        </Grid>
+    </Grid>
+</Window>
