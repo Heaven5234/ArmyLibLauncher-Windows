@@ -3,39 +3,25 @@ using Gameloop.Vdf.Linq;
 using Microsoft.Win32;
 using System;
 using System.Collections.Generic;
-using System.Collections.ObjectModel;
 using System.Diagnostics;
 using System.IO;
-using System.Linq;
-using System.Runtime.InteropServices.WindowsRuntime;
-using System.Text;
+using System.Net.Http;
 using System.Text.Json;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using System.Windows;
 
-namespace ArmyLib
+namespace ArmyLib.Source
 {
-    public partial class MainWindow : Window
+    public class Steam
     {
-        public ObservableCollection<GameItem> Games { get; set; } = new ObservableCollection<GameItem>();
+        public static readonly HttpClient _httpClient = new HttpClient();
 
-        public string GetSteamDir()
-        {
-            return Registry.GetValue(@"HKEY_CURRENT_USER\Software\Valve\steam", "SteamPath", null) as string;
-        }
-
-        public string GetEpicDir()
-        {
-            string programData = Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData);
-            return Path.Combine(programData, @"Epic\EpicGamesLauncher\Data\Manifests");
-        }
-
-        public string GetActiveSteamUser(string steamDir)
+        public static string GetActiveSteamUser(string steamDir)
         {
             object activeUserObject = Registry.GetValue(@"HKEY_CURRENT_USER\Software\Valve\Steam\ActiveProcess", "ActiveUser", 0);
 
-            if(activeUserObject != null && Convert.ToInt32(activeUserObject) != 0)
+            if (activeUserObject != null && Convert.ToInt32(activeUserObject) != 0)
             {
                 string activeUserId = activeUserObject.ToString();
                 string localConfigPath = Path.Combine(steamDir, "userdata", activeUserId, @"config\localconfig.vdf");
@@ -49,7 +35,7 @@ namespace ArmyLib
             return null;
         }
 
-        private List<string> GetAppIdsFromLocalConfig(string filePath)
+        private static List<string> GetSteamAppIdsFromLocalConfig(string filePath)
         {
             List<string> appIds = new List<string>();
             if (!File.Exists(filePath)) return appIds;
@@ -84,13 +70,13 @@ namespace ArmyLib
             return appIds;
         }
 
-        public string GetVValue(VObject parent, string key)
+        public static string GetVValue(VObject parent, string key)
         {
             if (parent == null) return null;
 
-            foreach(var prop in parent)
+            foreach (var prop in parent)
             {
-                if(string.Equals(prop.Key, key, StringComparison.OrdinalIgnoreCase))
+                if (string.Equals(prop.Key, key, StringComparison.OrdinalIgnoreCase))
                 {
                     return prop.Value?.ToString();
                 }
@@ -98,7 +84,60 @@ namespace ArmyLib
             return null;
         }
 
-        public void GetSteamGames(string steamDir)
+        private static async Task<string> GetGameNameFromSteamStoreAPI(string appId)
+        {
+            if (!_httpClient.DefaultRequestHeaders.Contains("User-Agent"))
+            {
+                _httpClient.DefaultRequestHeaders.UserAgent.ParseAdd("Mozilla/5.0 (Windows NT 10.0; Win64; x64)");
+            }
+
+            if (string.IsNullOrWhiteSpace(appId) || !long.TryParse(appId, out var _))
+            {
+                return null;
+            }
+
+            try
+            {
+                string url = $"https://store.steampowered.com/api/appdetails?appids={appId}";
+
+                HttpResponseMessage response = await _httpClient.GetAsync(url);
+
+                if (!response.IsSuccessStatusCode)
+                {
+                    return null;
+                }
+
+                string json = await response.Content.ReadAsStringAsync();
+
+                using (JsonDocument doc = JsonDocument.Parse(json))
+                {
+                    var root = doc.RootElement;
+
+                    if (root.TryGetProperty(appId, out var appData))
+                    {
+                        if (appData.TryGetProperty("success", out var success) && success.GetBoolean())
+                        {
+                            if (appData.TryGetProperty("data", out var dataNode))
+                            {
+                                if (dataNode.TryGetProperty("name", out var nameNode))
+                                {
+                                    return nameNode.GetString();
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            catch (Exception ex)
+            {
+                MessageBox.Show($"GetGameNameFromSteamStoreAPI : error {ex.Message}");
+            }
+
+            return null;
+        }
+
+        public static async Task GetSteamGames(string steamDir)
         {
             if (String.IsNullOrEmpty(steamDir) || !Directory.Exists(steamDir)) return;
 
@@ -130,9 +169,9 @@ namespace ArmyLib
 
                                 string fullInstallPath = Path.Combine(steamApps, "common", installDir ?? "");
 
-                                Games.Add(new GameItem
+                                GameItemHandler.Instance.AddGame(new GameItem
                                 {
-                                    Name = gameName,
+                                    Name = $"{gameName} : installed",
                                     Platform = "Steam",
                                     AppIdOrPath = appId,
                                     InstallLocation = fullInstallPath,
@@ -154,94 +193,41 @@ namespace ArmyLib
                 {
                     try
                     {
-                        List<string> libraryAppIds = GetAppIdsFromLocalConfig(activeUserConfigPath);
+                        List<string> libraryAppIds = GetSteamAppIdsFromLocalConfig(activeUserConfigPath);
 
                         foreach (string appId in libraryAppIds)
                         {
                             if (!installedAppIds.Contains(appId))
                             {
-                                Games.Add(new GameItem
+                                string realGameNames = await GetGameNameFromSteamStoreAPI(appId);
+
+                                if (realGameNames != null)
                                 {
-                                    Name = $"Steam Game {appId}",
-                                    Platform = "Steam",
-                                    AppIdOrPath = appId,
-                                    InstallLocation = null,
-                                    IsInstalled = false
-                                });
+                                    Debug.WriteLine($"[Steam API] {appId} için isim çekiliyor");
+
+                                    GameItemHandler.Instance.AddGame(new GameItem
+                                    {
+                                        Name = $"{realGameNames} : not installed",
+                                        Platform = "Steam",
+                                        AppIdOrPath = appId,
+                                        InstallLocation = null,
+                                        IsInstalled = false
+                                    });
+                                }
 
                                 installedAppIds.Add(appId);
+
+                                await Task.Delay(100);
                             }
                         }
                     }
 
-                    catch(Exception ex) 
+                    catch (Exception ex)
                     {
                         MessageBox.Show($"GetSteamGames : Error on not installed games {ex.Message}");
                     }
                 }
             }
         }
-
-        public void GetEpicGames(string epicManifestDir)
-        {
-            if (String.IsNullOrEmpty(epicManifestDir) || !Directory.Exists(epicManifestDir)) return;
-
-            var manifestes = Directory.GetFiles(epicManifestDir, "*.item");
-            foreach(var manifest in manifestes)
-            {
-                try
-                {
-                    string jsonContent = File.ReadAllText(manifest);
-                    
-                    using(JsonDocument doc = JsonDocument.Parse(jsonContent))
-                    {
-                        var root = doc.RootElement;
-
-                        string name = root.TryGetProperty("DisplayName", out var nameProp) ? nameProp.GetString() : null;
-                        string appName = root.TryGetProperty("AppName", out var appNameProp) ? appNameProp.GetString() : null;
-                        string installDir = root.TryGetProperty("InstallLocation", out var dirProp) ? dirProp.GetString() : null;
-
-                        if (!string.IsNullOrEmpty(name))
-                        {
-                            Games.Add(new GameItem
-                            {
-                                Name = name,
-                                Platform = "Epic Games",
-                                AppIdOrPath = appName,
-                                InstallLocation = installDir
-                            });
-                        }
-                    }
-                }
-
-                catch
-                {
-                    MessageBox.Show("GetEpicGames : Error");
-                }
-            }
-        }
-
-        public void GetAllGames()
-        {
-            string steamDir = GetSteamDir();
-            string epicManifestDir = GetEpicDir();
-
-            GetSteamGames(steamDir);
-            GetEpicGames(epicManifestDir);
-        }
-
-        public MainWindow()
-        {
-            InitializeComponent();
-
-            GetAllGames();
-
-            MessageBox.Show($"Bulunan oyunların sayısı {Games.Count}");
-
-            foreach(var game in Games)
-            {
-                MessageBox.Show(game.Name);
-            }
-        }
-    }    
+    }
 }
