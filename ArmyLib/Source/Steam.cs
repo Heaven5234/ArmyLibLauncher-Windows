@@ -171,7 +171,7 @@ namespace ArmyLib.Source
 
                                 GameItemHandler.Instance.AddGame(new GameItem
                                 {
-                                    Name = $"{gameName} : installed",
+                                    Name = $"{gameName} : not installed",
                                     Platform = "Steam",
                                     AppIdOrPath = appId,
                                     InstallLocation = fullInstallPath,

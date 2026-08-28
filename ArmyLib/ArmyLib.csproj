@@ -89,6 +89,7 @@
       <Generator>MSBuild:Compile</Generator>
       <SubType>Designer</SubType>
     </ApplicationDefinition>
+    <Compile Include="Source\Cache.cs" />
     <Compile Include="Source\EpicGames.cs" />
     <Compile Include="Source\GameHandler.cs" />
     <Compile Include="Source\GameItemHandler.cs" />
