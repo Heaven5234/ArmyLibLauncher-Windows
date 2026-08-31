@@ -5,6 +5,7 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
+using System.Linq;
 using System.Net.Http;
 using System.Text.Json;
 using System.Text.RegularExpressions;
@@ -17,60 +18,9 @@ namespace ArmyLib.Source
     {
         public static readonly HttpClient _httpClient = new HttpClient();
 
-        public static string GetActiveSteamUser(string steamDir)
-        {
-            object activeUserObject = Registry.GetValue(@"HKEY_CURRENT_USER\Software\Valve\Steam\ActiveProcess", "ActiveUser", 0);
+        private static string steamRegeditPath = @"HKEY_CURRENT_USER\Software\Valve\Steam\ActiveProcess";
 
-            if (activeUserObject != null && Convert.ToInt32(activeUserObject) != 0)
-            {
-                string activeUserId = activeUserObject.ToString();
-                string localConfigPath = Path.Combine(steamDir, "userdata", activeUserId, @"config\localconfig.vdf");
-
-                if (File.Exists(localConfigPath))
-                {
-                    return localConfigPath;
-                }
-            }
-
-            return null;
-        }
-
-        private static List<string> GetSteamAppIdsFromLocalConfig(string filePath)
-        {
-            List<string> appIds = new List<string>();
-            if (!File.Exists(filePath)) return appIds;
-
-            try
-            {
-                string content = File.ReadAllText(filePath);
-
-                int appsIdx = content.IndexOf("\"apps\"", StringComparison.OrdinalIgnoreCase);
-                if (appsIdx != -1)
-                {
-                    int openBrace = content.IndexOf('{', appsIdx);
-                    if (openBrace != -1)
-                    {
-                        string appsBlock = content.Substring(openBrace);
-                        MatchCollection matches = Regex.Matches(appsBlock, @"^\s*""(\d+)""\s*\{", RegexOptions.Multiline);
-
-                        foreach (Match match in matches)
-                        {
-                            if (match.Success)
-                            {
-                                appIds.Add(match.Groups[1].Value);
-                            }
-                        }
-                    }
-                }
-            }
-            catch
-            {
-            }
-
-            return appIds;
-        }
-
-        public static string GetVValue(VObject parent, string key)
+        private static string GetVValue(VObject parent, string key)
         {
             if (parent == null) return null;
 
@@ -84,64 +34,176 @@ namespace ArmyLib.Source
             return null;
         }
 
-        private static async Task<string> GetGameNameFromSteamStoreAPI(string appId)
+        private static string CleanVdfContent(string content)
         {
-            if (!_httpClient.DefaultRequestHeaders.Contains("User-Agent"))
-            {
-                _httpClient.DefaultRequestHeaders.UserAgent.ParseAdd("Mozilla/5.0 (Windows NT 10.0; Win64; x64)");
-            }
+            if (string.IsNullOrWhiteSpace(content)) return content;
 
-            if (string.IsNullOrWhiteSpace(appId) || !long.TryParse(appId, out var _))
-            {
-                return null;
-            }
+            content = Regex.Replace(content, @"\[\$.*?\]", "");
+
+            content = Regex.Replace(content, @"^\s*//.*", "", RegexOptions.Multiline);
+
+            return content;
+        }
+
+        private static async Task<HashSet<string>> GetAppIDsFromLocalConfig(string steamDir)
+        {
+            HashSet<string> appIDs = new HashSet<string>();
+
+            object currentUserRegedit = Registry.GetValue(steamRegeditPath, "ActiveUser", null);
+            if(currentUserRegedit == null || currentUserRegedit.ToString() == "0") return null;
+
+            string currentUser = Convert.ToInt32(currentUserRegedit).ToString();
+            string localConfig = Path.Combine(steamDir, "userdata", currentUser, "config", "localconfig.vdf");
+
+            if (!File.Exists(localConfig)) { Debug.WriteLine("GetAppIDsFromLocalConfig : cant find localconfig.vdf");  return appIDs; }
 
             try
             {
-                string url = $"https://store.steampowered.com/api/appdetails?appids={appId}";
+                string configContent;
 
-                HttpResponseMessage response = await _httpClient.GetAsync(url);
+                using (var stream = new FileStream(
+                    localConfig,
+                    FileMode.Open,
+                    FileAccess.Read,
+                    FileShare.ReadWrite
+                    ))
 
-                if (!response.IsSuccessStatusCode)
+                using (var reader = new StreamReader(stream))
                 {
-                    return null;
+                    configContent = await reader.ReadToEndAsync();
                 }
 
-                string json = await response.Content.ReadAsStringAsync();
-
-                using (JsonDocument doc = JsonDocument.Parse(json))
+                if (string.IsNullOrWhiteSpace(configContent))
                 {
-                    var root = doc.RootElement;
+                    Debug.WriteLine("Cant find configContent");
+                    return appIDs;
+                }
 
-                    if (root.TryGetProperty(appId, out var appData))
+                int appsIndex = configContent.IndexOf("\"apps\"", StringComparison.OrdinalIgnoreCase);
+
+                if(appsIndex != -1)
+                {
+                    string appsSection = configContent.Substring(appsIndex);
+
+                    var matches = Regex.Matches(appsSection, @"^\s*""(\d+)""", RegexOptions.Multiline);
+                    foreach(Match match in matches)
                     {
-                        if (appData.TryGetProperty("success", out var success) && success.GetBoolean())
+                        if(match.Groups.Count > 0)
                         {
-                            if (appData.TryGetProperty("data", out var dataNode))
-                            {
-                                if (dataNode.TryGetProperty("name", out var nameNode))
-                                {
-                                    return nameNode.GetString();
-                                }
-                            }
+                            appIDs.Add(match.Groups[1].Value);
                         }
                     }
                 }
             }
 
-            catch (Exception ex)
+            catch(Exception ex)
             {
-                MessageBox.Show($"GetGameNameFromSteamStoreAPI : error {ex.Message}");
+                Debug.WriteLine($"GetAppIDsFromLocalConfig : {ex.Message}");
+            }
+
+            return appIDs;
+        }
+
+        private static (string name, string Type)? GetSteamAppData(string appDetail, string appID)
+        {
+            try
+            {
+                using (JsonDocument doc = JsonDocument.Parse(appDetail))
+                {
+                    if (doc.RootElement.TryGetProperty(appID, out JsonElement appElement))
+                    {
+                        if (appElement.TryGetProperty("success", out JsonElement success))
+                        {
+                            if (success.GetBoolean())
+                            {
+                                if (appElement.TryGetProperty("data", out JsonElement data))
+                                {
+                                    string name = data.TryGetProperty("name", out JsonElement nameProp) ? nameProp.GetString() : null;
+                                    string type = data.TryGetProperty("type", out JsonElement typeProp) ? typeProp.GetString() : null;
+
+                                    return (name, type);
+                                }
+                            }
+                        }
+                    }
+
+                }
+            }
+
+            catch(Exception ex)
+            {
+                Debug.WriteLine($"GetSteamAppData : {ex.Message}");
             }
 
             return null;
         }
 
-        public static async Task GetSteamGames(string steamDir)
+        private static async Task<string> GetAppDetail(string appID)
         {
+            try
+            {
+                string appDetailUrl = $"https://store.steampowered.com/api/appdetails?appids={appID}";
+
+                var response = await _httpClient.GetAsync(appDetailUrl);
+                if (!response.IsSuccessStatusCode) return null;
+
+                string appDetail = await response.Content.ReadAsStringAsync();
+                Debug.WriteLine($"[SteamAPI] get data for :{appID}");
+
+                return appDetail;
+            }
+
+            catch(Exception ex)
+            {
+                Debug.WriteLine($"GetAppDetail : {ex.Message}");
+            }
+
+            return null;
+        }
+
+        private static async Task GetSteamUserLibrary(HashSet<string> userAppIDs)
+        {
+            if (userAppIDs == null || userAppIDs.Count == 0) return;
+
+            foreach (string appID in userAppIDs)
+            {
+                try
+                {
+                    string appDetail = await GetAppDetail(appID);
+
+                    var appInfo = GetSteamAppData(appDetail, appID);
+
+                    if (appInfo.HasValue)
+                    {
+                        if (appInfo.Value.Type == "game" || appInfo.Value.Type == "dlc")
+                        {
+                            GameItemHandler.Instance.AddGame(new GameItem
+                            {
+                                Name = appInfo.Value.name,
+                                Platform = "Steam",
+                                Type = appInfo.Value.Type,
+                                AppIdOrPath = appID,
+                                InstallLocation = null,
+                                IsInstalled = false
+                            });
+                        }
+                    }
+
+                    await Task.Delay(100);
+                }
+
+                catch (Exception ex)
+                {
+                    Debug.WriteLine($"GetSteamUserLibrary[SteamAPI : {ex.ToString()}");
+                }
+            }
+        }
+
+        private static async Task GetInstalledSteamGames(string steamDir)
+        {           
+            HashSet<string> installedAppIds = new HashSet<string>();
             if (String.IsNullOrEmpty(steamDir) || !Directory.Exists(steamDir)) return;
 
-            HashSet<string> installedAppIds = new HashSet<string>();
             string steamApps = Path.Combine(steamDir, "steamapps");
 
             if (Directory.Exists(steamApps))
@@ -153,81 +215,41 @@ namespace ArmyLib.Source
                     try
                     {
                         string fileContent = File.ReadAllText(file);
+                        if (string.IsNullOrWhiteSpace(fileContent)) continue;
 
+                        fileContent = CleanVdfContent(fileContent);
                         VProperty rootProp = VdfConvert.Deserialize(fileContent);
 
                         if (rootProp?.Value is VObject appState)
                         {
-
-                            string gameName = GetVValue(appState, "name");
-                            string appId = GetVValue(appState, "appid");
+                            string appID = GetVValue(appState, "appid");
                             string installDir = GetVValue(appState, "installdir");
 
-                            if (!string.IsNullOrEmpty(appId) && !string.IsNullOrEmpty(gameName))
+                            GameItem app = GameItemHandler.Instance.GetGameByAppID(appID);
+
+                            if(app != null)
                             {
-                                installedAppIds.Add(appId);
-
-                                string fullInstallPath = Path.Combine(steamApps, "common", installDir ?? "");
-
-                                GameItemHandler.Instance.AddGame(new GameItem
-                                {
-                                    Name = $"{gameName} : not installed",
-                                    Platform = "Steam",
-                                    AppIdOrPath = appId,
-                                    InstallLocation = fullInstallPath,
-                                    IsInstalled = true
-                                });
+                                app.InstallLocation = Path.Combine(steamDir, "common", installDir ?? "");
+                                app.IsInstalled = true;
                             }
                         }
                     }
 
                     catch (Exception ex)
                     {
-                        MessageBox.Show($"GetSteamGames : Error on installed games {ex.Message}");
-                    }
-                }
-
-                string activeUserConfigPath = GetActiveSteamUser(steamDir);
-
-                if (!string.IsNullOrEmpty(activeUserConfigPath) && File.Exists(activeUserConfigPath))
-                {
-                    try
-                    {
-                        List<string> libraryAppIds = GetSteamAppIdsFromLocalConfig(activeUserConfigPath);
-
-                        foreach (string appId in libraryAppIds)
-                        {
-                            if (!installedAppIds.Contains(appId))
-                            {
-                                string realGameNames = await GetGameNameFromSteamStoreAPI(appId);
-
-                                if (realGameNames != null)
-                                {
-                                    Debug.WriteLine($"[Steam API] {appId} için isim çekiliyor");
-
-                                    GameItemHandler.Instance.AddGame(new GameItem
-                                    {
-                                        Name = $"{realGameNames} : not installed",
-                                        Platform = "Steam",
-                                        AppIdOrPath = appId,
-                                        InstallLocation = null,
-                                        IsInstalled = false
-                                    });
-                                }
-
-                                installedAppIds.Add(appId);
-
-                                await Task.Delay(100);
-                            }
-                        }
-                    }
-
-                    catch (Exception ex)
-                    {
-                        MessageBox.Show($"GetSteamGames : Error on not installed games {ex.Message}");
+                        MessageBox.Show($"GetInstalledSteamGames : {ex.Message}");
                     }
                 }
             }
+        }
+
+        public static async Task GetSteamGames(string steamDir)
+        {
+            HashSet<string> userAppIDs = await GetAppIDsFromLocalConfig(steamDir);
+
+            await GetSteamUserLibrary(userAppIDs);
+
+            await GetInstalledSteamGames(steamDir);
         }
     }
 }

@@ -1,10 +1,10 @@
 ﻿using System;
-using System.Collections;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Diagnostics;
 using System.IO;
 using System.Text.Json;
+using System.Threading.Tasks;
 
 namespace ArmyLib.Source
 {
@@ -16,10 +16,10 @@ namespace ArmyLib.Source
 
         public static bool HasCache()
         {
-            return Directory.Exists(cachePath);
+            return File.Exists(cachePath);
         }
 
-        public static void SaveCache(ObservableCollection<GameItem> games)
+        public static async Task SaveCache(ObservableCollection<GameItem> games)
         {
             try
             {

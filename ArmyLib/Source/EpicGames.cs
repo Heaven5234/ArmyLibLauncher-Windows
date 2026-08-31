@@ -2,17 +2,18 @@
 using System.Diagnostics;
 using System.IO;
 using System.Text.Json;
+using System.Threading.Tasks;
 
 namespace ArmyLib.Source
 {
     public class EpicGames
     {
-        public static void GetEpicGames(string epicManifestDir)
+        public static async Task GetEpicGames(string epicManifestDir)
         {
             if (String.IsNullOrEmpty(epicManifestDir) || !Directory.Exists(epicManifestDir)) return;
 
-            var manifestes = Directory.GetFiles(epicManifestDir, "*.item");
-            foreach (var manifest in manifestes)
+            var manifests = Directory.GetFiles(epicManifestDir, "*.item");
+            foreach (var manifest in manifests)
             {
                 try
                 {

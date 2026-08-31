@@ -11,7 +11,7 @@ namespace ArmyLib.Source
         {
             try
             {
-                var steamPath  = Registry.GetValue(@"HKEY_CURRENT_USER\Software\Valve\steam", "SteamPath", null) as string;
+                var steamPath  = Registry.GetValue(@"HKEY_CURRENT_USER\Software\Valve\Steam", "SteamPath", null) as string;
 
                 if (string.IsNullOrEmpty(steamPath) || !Directory.Exists(steamPath)) throw new InvalidOperationException("SteamDir cannot be found");
 

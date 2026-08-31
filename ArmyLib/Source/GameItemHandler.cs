@@ -1,8 +1,7 @@
 ﻿using System;
 using System.Collections.ObjectModel;
 using System.Windows.Data;
-using System.Text.Json;
-using System.IO;
+using System.Linq;
 
 namespace ArmyLib.Source
 {
@@ -36,6 +35,14 @@ namespace ArmyLib.Source
             lock (_lock)
             {
                 Games.Clear();
+            }
+        }
+
+        public GameItem GetGameByAppID(string appID)
+        {
+            lock (_lock)
+            {
+                return Games?.FirstOrDefault<GameItem>(x => string.Equals(x.AppIdOrPath, appID, StringComparison.OrdinalIgnoreCase));
             }
         }
     }
