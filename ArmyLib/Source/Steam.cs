@@ -11,6 +11,7 @@ using System.Text.Json;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using System.Windows;
+using System.Windows.Controls;
 
 namespace ArmyLib.Source
 {
@@ -104,7 +105,7 @@ namespace ArmyLib.Source
             return appIDs;
         }
 
-        private static (string name, string Type)? GetSteamAppData(string appDetail, string appID)
+        private static (string name, string type)? GetSteamAppData(string appDetail, string appID)
         {
             try
             {
@@ -165,36 +166,87 @@ namespace ArmyLib.Source
         {
             if (userAppIDs == null || userAppIDs.Count == 0) return;
 
-            foreach (string appID in userAppIDs)
+            if (Cache.cachePath != null)
             {
-                try
+                var cachedGames = Cache.LoadCache();
+                                
+                foreach (string appID in userAppIDs)
                 {
-                    string appDetail = await GetAppDetail(appID);
+                    var game = cachedGames.FirstOrDefault(g => string.Equals(g.AppIdOrPath, appID, StringComparison.OrdinalIgnoreCase) || (int.TryParse(g.AppIdOrPath, out int gameId) && int.TryParse(appID, out int searchId) && gameId == searchId));
 
-                    var appInfo = GetSteamAppData(appDetail, appID);
-
-                    if (appInfo.HasValue)
+                    if (game == null)
                     {
-                        if (appInfo.Value.Type == "game" || appInfo.Value.Type == "dlc")
+                        try
                         {
-                            GameItemHandler.Instance.AddGame(new GameItem
+                            string appDetail = await GetAppDetail(appID);
+
+                            var appInfo = GetSteamAppData(appDetail, appID);
+
+                            if (appInfo.HasValue)
                             {
-                                Name = appInfo.Value.name,
-                                Platform = "Steam",
-                                Type = appInfo.Value.Type,
-                                AppIdOrPath = appID,
-                                InstallLocation = null,
-                                IsInstalled = false
-                            });
+                                if (appInfo.Value.type == "game" || appInfo.Value.type == "dlc")
+                                {
+                                    GameItemHandler.Instance.AddGame(new GameItem
+                                    {
+                                        Name = appInfo.Value.name,
+                                        Platform = "Steam",
+                                        Type = appInfo.Value.type,
+                                        AppIdOrPath = appID,
+                                        InstallLocation = null,
+                                        IsInstalled = false
+                                    });
+                                }
+                            }
+
+                            await Task.Delay(100);
+                        }
+
+                        catch (Exception ex)
+                        {
+                            Debug.WriteLine($"GetSteamUserLibrary[SteamAPI] : {ex.ToString()}");
                         }
                     }
 
-                    await Task.Delay(100);
+                    else
+                    {
+                        continue;
+                    }
                 }
+            }
 
-                catch (Exception ex)
+            else
+            {
+                foreach (string appID in userAppIDs)
                 {
-                    Debug.WriteLine($"GetSteamUserLibrary[SteamAPI : {ex.ToString()}");
+                    try
+                    {
+                        string appDetail = await GetAppDetail(appID);
+
+                        var appInfo = GetSteamAppData(appDetail, appID);
+
+                        if (appInfo.HasValue)
+                        {
+                            if (appInfo.Value.type == "game" || appInfo.Value.type == "dlc")
+                            {
+                                GameItemHandler.Instance.AddGame(new GameItem
+                                {
+                                    Name = appInfo.Value.name,
+                                    Platform = "Steam",
+                                    Type = appInfo.Value.type,
+                                    AppIdOrPath = appID,
+                                    InstallLocation = null,
+                                    IsInstalled = false
+                                });
+                            }
+                        }
+
+                        await Task.Delay(100);
+                    }
+
+                    catch (Exception ex)
+                    {
+                        Debug.WriteLine($"GetSteamUserLibraryCompeletely[SteamAPI] : {ex.ToString()}");
+                    }
                 }
             }
         }

@@ -7,8 +7,6 @@ namespace ArmyLib.Source
     {
         private static async Task GetAllGamesAsync()
         {
-            GameItemHandler.Instance.Clear();
-
             string steamDir = DirectionHandler.GetSteamDir();
             string epicManifestDir = DirectionHandler.GetEpicDir();
 

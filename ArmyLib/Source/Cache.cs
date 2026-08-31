@@ -12,7 +12,7 @@ namespace ArmyLib.Source
     {
         private static readonly string armyLibPath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "ArmyLib");
 
-        private static readonly string cachePath = Path.Combine(armyLibPath, "cached_games.json");
+        public static readonly string cachePath = Path.Combine(armyLibPath, "cached_games.json");
 
         public static bool HasCache()
         {
