@@ -11,9 +11,9 @@ namespace ArmyLib.Source
             string epicManifestDir = DirectionHandler.GetEpicDir();
 
             await Steam.GetSteamGames(steamDir);
-            await EpicGames.GetEpicGames(epicManifestDir);
+            await EpicGames.GetEpicGames(epicManifestDir, "ddde1d89182e4dc4b6790a687bba2607");
 
-            await Cache.SaveCache(GameItemHandler.Instance.Games);
+            await Cache.SaveCache(GameItemHandler.Instance.Games, GarbageAppHandler.Instance.GarbageApps);
             MessageBox.Show($"game count : {GameItemHandler.Instance.Games.Count}");
         }
 

@@ -11,7 +11,6 @@ using System.Text.Json;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using System.Windows;
-using System.Windows.Controls;
 
 namespace ArmyLib.Source
 {
@@ -166,13 +165,15 @@ namespace ArmyLib.Source
         {
             if (userAppIDs == null || userAppIDs.Count == 0) return;
 
-            if (Cache.cachePath != null)
+            if (Cache.HasCache() && Cache.HasGarbageCache())
             {
-                var cachedGames = Cache.LoadCache();
+                var cachedApps = Cache.LoadCache();
                                 
                 foreach (string appID in userAppIDs)
                 {
-                    var game = cachedGames.FirstOrDefault(g => string.Equals(g.AppIdOrPath, appID, StringComparison.OrdinalIgnoreCase) || (int.TryParse(g.AppIdOrPath, out int gameId) && int.TryParse(appID, out int searchId) && gameId == searchId));
+                    var game = cachedApps.Value.games.FirstOrDefault(g => string.Equals(g.AppIdOrPath, appID, StringComparison.OrdinalIgnoreCase) || (int.TryParse(g.AppIdOrPath, out int gameId) && int.TryParse(appID, out int searchId) && gameId == searchId));
+
+                    var garbageApp = cachedApps.Value.garbageApps.FirstOrDefault(g => string.Equals(g.AppIdOrPath, appID, StringComparison.OrdinalIgnoreCase) || (int.TryParse(g.AppIdOrPath, out int garbageId) && int.TryParse(appID, out int searchId) && garbageId == searchId));
 
                     if (game == null)
                     {
@@ -182,20 +183,31 @@ namespace ArmyLib.Source
 
                             var appInfo = GetSteamAppData(appDetail, appID);
 
-                            if (appInfo.HasValue)
+                            if (garbageApp == null)
                             {
-                                if (appInfo.Value.type == "game" || appInfo.Value.type == "dlc")
+                                if (appInfo.HasValue)
                                 {
-                                    GameItemHandler.Instance.AddGame(new GameItem
+                                    if (appInfo.Value.type == "game" )
                                     {
-                                        Name = appInfo.Value.name,
-                                        Platform = "Steam",
-                                        Type = appInfo.Value.type,
-                                        AppIdOrPath = appID,
-                                        InstallLocation = null,
-                                        IsInstalled = false
-                                    });
+                                        GameItemHandler.Instance.AddGame(new GameItem
+                                        {
+                                            Name = appInfo.Value.name,
+                                            Platform = "Steam",
+                                            Type = appInfo.Value.type,
+                                            AppIdOrPath = appID,
+                                            InstallLocation = null,
+                                            IsInstalled = false
+                                        });
+                                    }
                                 }
+                            }
+
+                            else
+                            {
+                                GarbageAppHandler.Instance.AddGarbageApp(new GarbageApp
+                                {
+                                    AppIdOrPath = appID
+                                });
                             }
 
                             await Task.Delay(100);
@@ -238,6 +250,14 @@ namespace ArmyLib.Source
                                     IsInstalled = false
                                 });
                             }
+                        }
+
+                        else
+                        {
+                            GarbageAppHandler.Instance.AddGarbageApp(new GarbageApp
+                            {
+                                AppIdOrPath = appID
+                            });
                         }
 
                         await Task.Delay(100);
