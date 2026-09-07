@@ -116,19 +116,33 @@
       <Generator>MSBuild:Compile</Generator>
       <SubType>Designer</SubType>
     </ApplicationDefinition>
-    <Compile Include="Design\EpicWindow.xaml.cs">
+    <Compile Include="Design\Loading.xaml.cs">
+      <DependentUpon>Loading.xaml</DependentUpon>
+    </Compile>
+    <Compile Include="Design\LoginWindows\EpicWindow.xaml.cs">
       <DependentUpon>EpicWindow.xaml</DependentUpon>
     </Compile>
+    <Compile Include="Design\LoginWindows\SteamWindow.xaml.cs">
+      <DependentUpon>SteamWindow.xaml</DependentUpon>
+    </Compile>
     <Compile Include="Source\Cache.cs" />
-    <Compile Include="Source\EpicGames.cs" />
-    <Compile Include="Source\EpicLoginHandler.cs" />
-    <Compile Include="Source\GameHandler.cs" />
-    <Compile Include="Source\GameItemHandler.cs" />
-    <Compile Include="Source\GarbageApp.cs" />
-    <Compile Include="Source\GarbageAppHandler.cs" />
+    <Compile Include="Source\Services\EpicGames.cs" />
+    <Compile Include="Source\Handlers\EpicLoginHandler.cs" />
+    <Compile Include="Source\Handlers\GameHandler.cs" />
+    <Compile Include="Source\Handlers\GameItemHandler.cs" />
+    <Compile Include="Source\Models\GarbageApp.cs" />
+    <Compile Include="Source\Handlers\GarbageAppHandler.cs" />
     <Compile Include="Source\Host.cs" />
-    <Compile Include="Source\Steam.cs" />
-    <Page Include="Design\EpicWindow.xaml">
+    <Compile Include="Source\Services\Steam.cs" />
+    <Page Include="Design\Loading.xaml">
+      <SubType>Designer</SubType>
+      <Generator>MSBuild:Compile</Generator>
+    </Page>
+    <Page Include="Design\LoginWindows\EpicWindow.xaml">
+      <SubType>Designer</SubType>
+      <Generator>MSBuild:Compile</Generator>
+    </Page>
+    <Page Include="Design\LoginWindows\SteamWindow.xaml">
       <SubType>Designer</SubType>
       <Generator>MSBuild:Compile</Generator>
     </Page>
@@ -140,8 +154,8 @@
       <DependentUpon>App.xaml</DependentUpon>
       <SubType>Code</SubType>
     </Compile>
-    <Compile Include="Source\DirectionHandler.cs" />
-    <Compile Include="Source\GameItem.cs" />
+    <Compile Include="Source\Handlers\DirectionHandler.cs" />
+    <Compile Include="Source\Models\GameItem.cs" />
     <Compile Include="Design\MainWindow.xaml.cs">
       <DependentUpon>MainWindow.xaml</DependentUpon>
       <SubType>Code</SubType>
