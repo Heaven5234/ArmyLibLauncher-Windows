@@ -69,5 +69,37 @@ namespace ArmyLib.Source
                 return result;
             }
         }
+
+        public GarbageApp GetGarbageAppByProductType(string appID)
+        {
+            lock (_lock)
+            {
+                if (string.IsNullOrWhiteSpace(appID))
+                {
+                    Debug.WriteLine("GetGarbageAppByAppID : cant ind appID");
+                    return null;
+                }
+
+                else if (GarbageApps == null || GarbageApps.Count == 0)
+                {
+                    Debug.WriteLine("GetGarbageAppByAppID : cant find any ggarbage apps");
+                    return null;
+                }
+
+                var result = GarbageApps.FirstOrDefault(x => x != null && !string.IsNullOrEmpty(x.productType) && string.Equals(x.productType, appID, StringComparison.OrdinalIgnoreCase));
+
+                if (result != null)
+                {
+                    Debug.WriteLine($"GetGarbageAppByAppID : found garbage app with App ID : {appID}");
+                }
+
+                else
+                {
+                    Debug.WriteLine($"GetGarbagAppbyAppID : cant found garbage app with App ID {appID}");
+                }
+
+                return result;
+            }
+        }
     }
 }

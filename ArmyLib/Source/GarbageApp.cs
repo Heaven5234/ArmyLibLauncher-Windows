@@ -9,5 +9,6 @@ namespace ArmyLib.Source
     public class GarbageApp
     {
         public string AppIdOrPath { get; set; }
+        public string productType {  get; set; }
     }
 }

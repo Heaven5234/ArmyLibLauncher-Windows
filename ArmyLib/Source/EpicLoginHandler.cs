@@ -16,7 +16,7 @@ namespace ArmyLib.Source
     {
         static HttpClient _httpClient = new HttpClient();
         static string fallBackVersion = "14.0.8";
-        static string clientID = "34a02cf8f4414e29b15921876da36f9a";
+        public static string clientID = "34a02cf8f4414e29b15921876da36f9a";
         static string clientSecret = "daafbccc737745039dffe53d94fc76cf";
         static string epicLauncherDirRegedit = @"HKEY_CURRENT_USER\SOFTWARE\Epic Games\EOS";
 
@@ -47,26 +47,32 @@ namespace ArmyLib.Source
             return fallBackVersion;
         }
 
-        private static void InitializeHttpClient()
+        private static void InitializeHttpClientVoid(HttpClient client)
         {
             string version = GetEpicLauncherVersion();
-            _httpClient.DefaultRequestHeaders.UserAgent.Clear();
+            client.DefaultRequestHeaders.UserAgent.Clear();
             string useragent = $"EpicGamesLauncher/{version} Windows/10.0.19041.1.256.64bit";
-            _httpClient.DefaultRequestHeaders.UserAgent.ParseAdd(useragent);
+            client.DefaultRequestHeaders.UserAgent.ParseAdd(useragent);
 
-            string credentials = Convert.ToBase64String(Encoding.ASCII.GetBytes($"{clientID} : {clientSecret}"));
-            _httpClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Basic", credentials);
+            string credentials = Convert.ToBase64String(Encoding.ASCII.GetBytes($"{clientID}:{clientSecret}"));
+            client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Basic", credentials);
         }
         
+        public static void InitializeHttpClient(HttpClient client)
+        {
+            InitializeHttpClientVoid(client);
+        }
+
         private static async Task<string> ExchangeCodeForTokenAsync(string authCode)
         {
-            InitializeHttpClient();
-            string requestUrl = "account-public-service-prod03.ol.epicgames.com/launcher/api/public/assets/v2/";
+            InitializeHttpClient(_httpClient);
+            string requestUrl = "https://account-public-service-prod03.ol.epicgames.com/account/api/oauth/token";
 
             var requestBody = new Dictionary<string, string>
             {
                 {"grant_type", "authorization_code" },
-                {"code", authCode.Trim() }
+                {"code", authCode.Trim() },
+                {"token_type", "eg1" }
             };
 
             var request = new HttpRequestMessage(HttpMethod.Post, requestUrl)
@@ -83,9 +89,9 @@ namespace ArmyLib.Source
             }            
         }
 
-        public static async Task ExchangeCodeForToken(string authCode)
+        public static async Task<string> ExchangeCodeForToken(string authCode)
         {
-            await ExchangeCodeForTokenAsync(authCode);
+            return await ExchangeCodeForTokenAsync(authCode);
         }
     }
 }

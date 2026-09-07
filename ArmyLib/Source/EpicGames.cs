@@ -2,15 +2,18 @@
 using System.Diagnostics;
 using System.IO;
 using System.Net.Http;
+using System.Net.Http.Headers;
 using System.Text.Json;
 using System.Threading.Tasks;
-using System.Net.Http.Headers;
 
 namespace ArmyLib.Source
 {
     public class EpicGames
     {
         private static HttpClient _httpClient = new HttpClient();
+
+        static string libraryUrl = "https://library-service.live.use1a.on.epicgames.com/library/api/public/items?includeMetadata=true";
+        static string gamesUrl = "https://launcher-public-service-prod06.ol.epicgames.com/launcher/api/public/assets/v2/platform/{platform}/namespace/{namespace}/catalogItem/{catalog_item_id}/app/{app_name}/label/{label}";
 
         private static (string name, string appName, string installDir)? GetEpicAppData(string manifest)
         {
@@ -32,15 +35,50 @@ namespace ArmyLib.Source
         {
             try
             {
-                var request = new HttpRequestMessage(HttpMethod.Get, "https://library-service.live.ol.epicgames.com/library/api/v1/assets/NEW?includeMetadata=true");
-
+                var request = new HttpRequestMessage(HttpMethod.Get, libraryUrl);
                 request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
 
                 HttpResponseMessage response = await _httpClient.SendAsync(request);
 
-                var games = response.Content.ReadAsStringAsync();
+                string jsonContent = await response.Content.ReadAsStringAsync();
 
-                await Task.Delay(100);
+                using(JsonDocument doc = JsonDocument.Parse(jsonContent))
+                {
+                    var root = doc.RootElement;
+
+                    if(root.TryGetProperty("records", out var records))
+                    {
+                        foreach(var app in records.EnumerateArray())
+                        {
+                            string productId = app.TryGetProperty("appName", out var productProp) ? productProp.GetString() : null;
+
+                            if (GarbageAppHandler.Instance.GetGarbageAppByProductType(productId) == null)
+                            {
+                                string appName = app.TryGetProperty("productId", out var appProp) ? appProp.GetString() : null;
+                                string name = app.TryGetProperty("sandboxName", out var nameProp) ? nameProp.GetString() : null;
+
+                                Debug.WriteLine($"[EpicAPI] get data for :{appName}");
+
+                                GameItemHandler.Instance.AddGame(new GameItem
+                                {
+                                    Name = name,
+                                    AppIdOrPath = appName,
+                                    Platform = "Epic Games",
+                                    Type = "game",
+                                    InstallLocation = null,
+                                    IsInstalled = false
+                                });
+                            }
+
+                            else
+                            {
+                                continue;
+                            }
+
+                            await Task.Delay(100);
+                        }
+                    }
+                }
             }
 
             catch(Exception ex)
@@ -89,14 +127,13 @@ namespace ArmyLib.Source
                     {
                         if (!string.IsNullOrEmpty(name))
                         {
-                            GameItemHandler.Instance.AddGame(new GameItem
+                            GameItem app = GameItemHandler.Instance.GetGameByAppID(appName);
+
+                            if(app != null)
                             {
-                                Name = name,
-                                Platform = "Epic Games",
-                                AppIdOrPath = appName,
-                                InstallLocation = installDir,
-                                IsInstalled = true
-                            });
+                                app.InstallLocation = installDir;
+                                app.IsInstalled = true;
+                            }
                         }
                     }
                 }
