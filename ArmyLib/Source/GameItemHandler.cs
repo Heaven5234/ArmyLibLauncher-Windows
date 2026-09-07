@@ -2,6 +2,7 @@
 using System.Collections.ObjectModel;
 using System.Windows.Data;
 using System.Linq;
+using System.Diagnostics;
 
 namespace ArmyLib.Source
 {
@@ -42,7 +43,31 @@ namespace ArmyLib.Source
         {
             lock (_lock)
             {
-                return Games?.FirstOrDefault<GameItem>(x => string.Equals(x.AppIdOrPath, appID, StringComparison.OrdinalIgnoreCase));
+                if (string.IsNullOrWhiteSpace(appID))
+                {
+                    Debug.WriteLine("GetGameByAppId : Error");
+                    return null;
+                }
+
+                else if (Games == null || Games.Count == 0)
+                {
+                    Debug.WriteLine("GetGameByAppId : No games found");
+                    return null;
+                }
+
+                var result = Games.FirstOrDefault(x => x != null && !string.IsNullOrEmpty(x.AppIdOrPath) && string.Equals(x.AppIdOrPath, appID, StringComparison.OrdinalIgnoreCase));
+
+                if(result != null)
+                {
+                    Debug.WriteLine($"GetGameByyAppId : Found game with AppID {appID}");
+                }
+
+                else
+                {
+                    Debug.WriteLine($"GetGameByAppId : No game found with AppID {appID}");
+                }
+
+                return result;
             }
         }
     }

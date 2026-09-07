@@ -1,4 +1,5 @@
-﻿using ArmyLib.Source;
+﻿using ArmyLib.Design;
+using ArmyLib.Source;
 using System.Windows;
 
 namespace ArmyLib

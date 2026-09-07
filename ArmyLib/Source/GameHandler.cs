@@ -1,27 +1,46 @@
-﻿using System.Threading.Tasks;
+﻿using ArmyLib.Design;
+using System;
+using System.Net.Http;
+using System.Threading.Tasks;
 using System.Windows;
 
 namespace ArmyLib.Source
 {
     public class GameHandler
     {
-        private static async Task GetAllGamesAsync()
+        public static async Task GetEpicGames(string epicDir, string token)
         {
-            GameItemHandler.Instance.Clear();
+            await EpicGames.GetEpicGames(epicDir, token);
+        }
 
-            string steamDir = DirectionHandler.GetSteamDir();
-            string epicManifestDir = DirectionHandler.GetEpicDir();
-
+        public static async Task GetSteamGames(string steamDir)
+        {
             await Steam.GetSteamGames(steamDir);
-            await EpicGames.GetEpicGames(epicManifestDir);
+        }
 
-            await Cache.SaveCache(GameItemHandler.Instance.Games);
+        private static async Task SaveGames()
+        {
+            await Cache.SaveCache(GameItemHandler.Instance.Games, GarbageAppHandler.Instance.GarbageApps);
             MessageBox.Show($"game count : {GameItemHandler.Instance.Games.Count}");
+        }
+
+        private static async Task LoadGamesAtStartupAsync()
+        {
+            string steamDir = DirectionHandler.GetSteamDir();
+            string epicDir = DirectionHandler.GetEpicDir();
+
+            EpicWindow epic = new EpicWindow();
+            epic.ShowDialog();
+
+            await GetEpicGames(epicDir, EpicWindow.AccessToken);
+            await GetSteamGames(steamDir);
+
+            await SaveGames();
         }
 
         public static async void LoadGamesAtStartup()
         {
-            await GetAllGamesAsync();
+            await LoadGamesAtStartupAsync();
         }
     }
 }
